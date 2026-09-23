@@ -1,9 +1,12 @@
 """Student view module"""
+import structlog
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from LearningAPI.models.people import NssUser
 from LearningAPI.models.people import StudentNote, StudentNoteType
+
+logger = structlog.get_logger(__name__)
 
 
 class StudentNoteViewSet(ModelViewSet):
@@ -32,7 +35,9 @@ class StudentNoteViewSet(ModelViewSet):
         Returns:
             Response -- JSON serialized instance
         """
-        student = NssUser.objects.get(pk=request.data['studentId'])
+        logger.info("student_note_create_start", data=request.data)
+
+        student =NssUser.objects.get(pk=request.data['studentId'])
         coach = NssUser.objects.get(user=request.auth.user)
 
         note_text = request.data.get('note', None)
@@ -49,6 +54,8 @@ class StudentNoteViewSet(ModelViewSet):
         except StudentNoteType.DoesNotExist:
             return Response({"reason": 'Invalid note type.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        logger.info("student_note_fk_resolved", student_id=student.id, note_type=student_note_type.label)
+
         try:
             note = StudentNote()
             note.student = student
@@ -56,6 +63,7 @@ class StudentNoteViewSet(ModelViewSet):
             note.note = note_text
             note.note_type = student_note_type
             note.save()
+            logger.info("student_note_saved", note_id=note.id)
 
             serializer = StudentNoteSerializer(note)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
